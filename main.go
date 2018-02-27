@@ -11,5 +11,4 @@ func main() {
 	UpdatePriceData()
 	fmt.Println(gPriceData["USD/JPY"])
 	fmt.Println(gPriceData["USD/CNY"])
-	//fmt.Println(filepath.Abs(os.Args[0]))
 }
