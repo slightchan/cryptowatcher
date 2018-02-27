@@ -46,10 +46,15 @@ type PriceData struct {
 	Name       string
 	Price      float64
 	UpdateTime time.Time
+	HowLong    time.Duration
 }
 
-func UpdatePriceData() {
-	body := GetYahooFinanceQuote()
+func (p PriceData) String() string {
+	return fmt.Sprintf("%s,%.4f,%.0f mins go,[%s]", p.Name, p.Price, p.HowLong.Minutes(), p.UpdateTime.Local().Format(time.RubyDate))
+}
+
+func UpdateCurrencyPrices() {
+	body := getRawData()
 	//fmt.Print(string(body))
 	var result PriceList
 	err := xml.Unmarshal(body, &result)
@@ -80,6 +85,8 @@ func UpdatePriceData() {
 				if err != nil {
 					log.Fatal(err)
 				}
+				data.HowLong = time.Now().Sub(data.UpdateTime)
+				//data.UpdateTime.Format(time.RubyDate)
 			}
 		}
 		//fmt.Println(data)
@@ -87,7 +94,7 @@ func UpdatePriceData() {
 	}
 }
 
-func GetYahooFinanceQuote() []byte {
+func getRawData() []byte {
 	cacheFile := path.Join(os.TempDir(), "financeYahoo.xml")
 	fmt.Println(cacheFile)
 	res, err := http.Get("https://finance.yahoo.com/webservice/v1/symbols/allcurrencies/quote")
