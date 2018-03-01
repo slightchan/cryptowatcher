@@ -54,36 +54,40 @@ func (p PriceData) String() string {
 }
 
 func UpdateCurrencyPrices() {
-	body := getRawData()
-	//fmt.Print(string(body))
-	var result PriceList
-	err := xml.Unmarshal(body, &result)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("Price count:%d\n", result.Resources.Count)
-	for i := range result.Resources.Resources {
-		var data PriceData
-		for j := range result.Resources.Resources[i].Fields {
-			fieldName := result.Resources.Resources[i].Fields[j].Name
-			fieldValue := result.Resources.Resources[i].Fields[j].Value
-			if fieldName == "name" {
-				//fmt.Println()
-				data.Name = fieldValue
-			}
-			if fieldName == "price" {
-				data.Price, _ = strconv.ParseFloat(fieldValue, 64)
-			}
-			if fieldName == "utctime" {
-				data.UpdateTime, err = time.Parse("2006-01-02T15:04:05-0700", fieldValue)
-				if err != nil {
-					log.Fatal(err)
-				}
-				data.HowLong = time.Now().Sub(data.UpdateTime)
-				//data.UpdateTime.Format(time.RubyDate)
-			}
+	ticker := time.NewTicker(time.Minute * 2)
+	for {
+		body := getRawData()
+		//fmt.Print(string(body))
+		var result PriceList
+		err := xml.Unmarshal(body, &result)
+		if err != nil {
+			log.Fatal(err)
 		}
-		gPriceData[data.Name] = data
+		fmt.Printf("Price count:%d\n", result.Resources.Count)
+		for i := range result.Resources.Resources {
+			var data PriceData
+			for j := range result.Resources.Resources[i].Fields {
+				fieldName := result.Resources.Resources[i].Fields[j].Name
+				fieldValue := result.Resources.Resources[i].Fields[j].Value
+				if fieldName == "name" {
+					//fmt.Println()
+					data.Name = fieldValue
+				}
+				if fieldName == "price" {
+					data.Price, _ = strconv.ParseFloat(fieldValue, 64)
+				}
+				if fieldName == "utctime" {
+					data.UpdateTime, err = time.Parse("2006-01-02T15:04:05-0700", fieldValue)
+					if err != nil {
+						log.Fatal(err)
+					}
+					data.HowLong = time.Now().Sub(data.UpdateTime)
+					//data.UpdateTime.Format(time.RubyDate)
+				}
+			}
+			gPriceData[data.Name] = data
+		}
+		<-ticker.C
 	}
 }
 

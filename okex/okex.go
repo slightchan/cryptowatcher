@@ -42,16 +42,16 @@ type EventData struct {
 }
 
 type SpotData struct {
-	High      float64 `json:"high"`
-	Vol       float64 `json:"vol"`
-	Last      float64 `json:"last"`
-	Low       float64 `json:"low"`
-	Buy       float64 `json:"buy"`
-	Change    float64 `json:"change"`
-	Sell      float64 `json:"sell"`
-	DayLow    float64 `json:"dayLow"`
-	DayHigh   float64 `json:"dayHigh"`
-	Open      float64 `json:"open"`
+	High      float64 `json:"high,string"`
+	Vol       float64 `json:"vol,string"`
+	Last      float64 `json:"last,string"`
+	Low       float64 `json:"low,string"`
+	Buy       float64 `json:"buy,string"`
+	Change    float64 `json:"change,string"`
+	Sell      float64 `json:"sell,string"`
+	DayLow    float64 `json:"dayLow,string"`
+	DayHigh   float64 `json:"dayHigh,string"`
+	Open      float64 `json:"open,string"`
 	Timestamp int64   `json:"timestamp"`
 }
 
@@ -61,15 +61,12 @@ type AddChannelResult struct {
 }
 
 var Done = make(chan int)
+var cryptoPrices map[string]SpotData = map[string]SpotData{}
 
 func ConnectOkex() {
 	log.SetFlags(0)
 
-	interrupt := make(chan os.Signal, 1)
-	kill := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-	signal.Notify(kill, os.Kill)
-	var dialer = websocket.Dialer{ReadBufferSize: 10000, WriteBufferSize: 1000}
+	var dialer = websocket.Dialer{ReadBufferSize: 100000, WriteBufferSize: 10000}
 	dialer.EnableCompression = true
 	//dialer.Proxy = nil
 	//dialer.HandshakeTimeout = time.Duration(10)*time.Second
@@ -79,52 +76,26 @@ func ConnectOkex() {
 		log.Fatal("dial:", err)
 	}
 	log.Println("Dial ok")
-	defer c.Close()
 
-	c.WriteMessage(websocket.TextMessage, []byte("{'event':'ping'}"))
-	ticker := time.NewTicker(time.Second * 30)
-	defer ticker.Stop()
-	go onRecv(c)
-
-	addChannel(c, "ok_sub_spot_btc_usdt_ticker")
-	for {
-		select {
-		case <-ticker.C:
-			c.WriteMessage(websocket.TextMessage, []byte("{'event':'ping'}"))
-		case <-kill:
-			log.Println("kill")
-
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
-			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				log.Println("write close:", err)
-				return
-			}
-			select {
-			case <-time.After(time.Second):
-			}
-			return
-		case <-interrupt:
-			log.Println("interrupt")
-
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
-			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			//c.Wri
-			if err != nil {
-				log.Println("write close:", err)
-				return
-			}
-			select {
-			case <-time.After(time.Second):
-			}
-			return
-		}
+	err = addChannel(c, "ok_sub_spot_btc_usdt_ticker")
+	if err != nil {
+		closeConnection(c)
+	} else {
+		go onRecv(c)
 	}
 }
 
-func addChannel(c *websocket.Conn, channel string) {
+func closeConnection(c *websocket.Conn) {
+	err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	if err != nil {
+		log.Println("write close:", err)
+		return
+	}
+	<-time.After(time.Second)
+	Done <- 1
+}
+
+func addChannel(c *websocket.Conn, channel string) error {
 	cmd := OKCmd{}
 	cmd.Event = "addChannel"
 	cmd.Channel = channel
@@ -132,71 +103,97 @@ func addChannel(c *websocket.Conn, channel string) {
 	err := c.WriteJSON(cmd)
 	if err != nil {
 		log.Println("write close:", err)
-		Done <- 1
-		return
 	}
+	return err
 }
 
 func onRecv(c *websocket.Conn) {
+	interrupt := make(chan os.Signal, 1)
+	kill := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+	signal.Notify(kill, os.Kill)
+	ticker := time.NewTicker(time.Second * 30)
+	defer ticker.Stop()
 	for {
-		_, message, err := c.ReadMessage()
-		if err != nil {
-			log.Println("read:", err)
-			Done <- 1
+		var message []byte
+		var err error
+		var msgType int
+		select {
+		case <-ticker.C:
+			c.WriteMessage(websocket.TextMessage, []byte("{'event':'ping'}"))
+			continue
+		case <-kill:
+			log.Println("kill")
+			closeConnection(c)
 			return
+		case <-interrupt:
+			log.Println("interrupt")
+			closeConnection(c)
+			return
+		default:
+			msgType, message, err = c.ReadMessage()
+		}
+		if err != nil {
+			log.Println(err)
+			break
 		}
 		log.Printf("recv: %s", message)
-		if json.Valid(message) {
-			log.Println("Is a valid json data")
-		} else {
-			log.Println("Is not a valid json data")
-			return
+		if !json.Valid(message) {
+			log.Printf("Invalid Data Format,Message Type:%d", msgType)
+			log.Println(string(message))
+			continue
 		}
 		if message[0] != byte('[') {
 			var pongEvent EventData
 			err = json.Unmarshal(message, &pongEvent)
 			if err != nil {
 				log.Println(err)
+				break
+			}
+			if pongEvent.Event == "pong" {
+				log.Println("Pong Event From Server")
 			} else {
-				log.Println(pongEvent)
+				log.Println("Unhandled Message Type:")
+				log.Println(string(message))
+				break
 			}
 		} else {
-			//var j []map[string]interface{}
-			//err = json.Unmarshal(message, &j)
 			var channels []ChannelData
 			err = json.Unmarshal(message, &channels)
 			if err != nil {
 				log.Println(err)
+				break
 			} else {
 				for i := 0; i < len(channels); i++ {
 					c := channels[i]
 					if c.Channel == "addChannel" {
-						onAddChannelResult(c.Data)
+						onAddChannelResult(c)
 					} else {
-						onChannelData(c.Data)
+						onChannelData(c)
 					}
 				}
 			}
 		}
-
-		//<-time.After(time.Second * 5)
-		//Done <- 1
 	}
+	log.Println("Receive Process Ended")
+	closeConnection(c)
 }
 
-func onChannelData(d json.RawMessage) {
+func onChannelData(c ChannelData) {
 	var r SpotData
-	err := json.Unmarshal(d, &r)
+	err := json.Unmarshal(c.Data, &r)
 	if err != nil {
 		log.Println(err)
 	} else {
+		r.Timestamp = r.Timestamp / 1000
+		cryptoPrices[c.Channel] = r
 		log.Println(r)
 	}
 }
 
-func onAddChannelResult(d json.RawMessage) {
+func onAddChannelResult(c ChannelData) {
 	var r AddChannelResult
-	err := json.Unmarshal(d, &r)
+	err := json.Unmarshal(c.Data, &r)
 	if err != nil {
 		log.Println(err)
 	} else {
