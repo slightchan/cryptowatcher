@@ -58,16 +58,10 @@ func UpdateCurrencyPrices() {
 	//fmt.Print(string(body))
 	var result PriceList
 	err := xml.Unmarshal(body, &result)
-	//err = ioutil.WriteFile("/Users/logan/Downloads/financeYahoo.xml",body,0666)
 	if err != nil {
 		log.Fatal(err)
 	}
-	//fmt.Println(result.XMLName)
-	//fmt.Println(result.Version)
-	//fmt.Println(result.Resources.XMLName)
-	//fmt.Println(result.Resources.Start)
 	fmt.Printf("Price count:%d\n", result.Resources.Count)
-	//fmt.Println(len(result.Resources.Resources))
 	for i := range result.Resources.Resources {
 		var data PriceData
 		for j := range result.Resources.Resources[i].Fields {
@@ -89,7 +83,6 @@ func UpdateCurrencyPrices() {
 				//data.UpdateTime.Format(time.RubyDate)
 			}
 		}
-		//fmt.Println(data)
 		gPriceData[data.Name] = data
 	}
 }
