@@ -1,7 +1,7 @@
 package main
 
 import (
-	"cryptowatcher/okex"
+	"github.com/slightchan/cryptowatcher/okex"
 )
 
 var gPriceData map[string]PriceData

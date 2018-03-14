@@ -17,7 +17,7 @@ import (
 const (
 	WS_API_URL_OKCOIN = "wss://real.okcoin.com:10440/websocket/okcoinapi"
 	WS_API_URL_OKEX   = "wss://real.okex.com:10441/websocket"
-	WS_PROXY          = "wss://139.162.74.36:9158/websocket"
+	WS_PROXY          = "ws://139.162.74.36:9158/websocket"
 )
 
 type OKCmd struct {
