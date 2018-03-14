@@ -17,6 +17,7 @@ import (
 const (
 	WS_API_URL_OKCOIN = "wss://real.okcoin.com:10440/websocket/okcoinapi"
 	WS_API_URL_OKEX   = "wss://real.okex.com:10441/websocket"
+	WS_PROXY          = "wss://139.162.74.36:9158/websocket"
 )
 
 type OKCmd struct {
@@ -66,11 +67,12 @@ var cryptoPrices map[string]SpotData = map[string]SpotData{}
 func ConnectOkex() {
 	log.SetFlags(0)
 
-	var dialer = websocket.Dialer{ReadBufferSize: 100000, WriteBufferSize: 10000}
-	//dialer.EnableCompression = true
+	var dialer = websocket.Dialer{ReadBufferSize: 4096, WriteBufferSize: 4096}
+	dialer.EnableCompression = true
 	dialer.HandshakeTimeout = time.Duration(10) * time.Second
+	//dialer.Proxy = http.ProxyFromEnvironment
 	log.Println("Dialing...")
-	c, _, err := dialer.Dial(WS_API_URL_OKEX, nil)
+	c, _, err := dialer.Dial(WS_PROXY, nil)
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
