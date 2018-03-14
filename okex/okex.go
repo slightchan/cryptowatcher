@@ -67,10 +67,9 @@ func ConnectOkex() {
 	log.SetFlags(0)
 
 	var dialer = websocket.Dialer{ReadBufferSize: 100000, WriteBufferSize: 10000}
-	dialer.EnableCompression = true
-	//dialer.Proxy = nil
-	//dialer.HandshakeTimeout = time.Duration(10)*time.Second
-
+	//dialer.EnableCompression = true
+	dialer.HandshakeTimeout = time.Duration(10) * time.Second
+	log.Println("Dialing...")
 	c, _, err := dialer.Dial(WS_API_URL_OKEX, nil)
 	if err != nil {
 		log.Fatal("dial:", err)

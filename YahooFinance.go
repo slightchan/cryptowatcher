@@ -97,6 +97,7 @@ func getRawData() []byte {
 	res, err := http.Get("https://finance.yahoo.com/webservice/v1/symbols/allcurrencies/quote")
 	if err == nil {
 		body, err := ioutil.ReadAll(res.Body)
+		//log.Println(string(body))
 		defer res.Body.Close()
 		if err == nil {
 			err = ioutil.WriteFile(cacheFile, body, 0666)
