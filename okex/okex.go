@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"time"
+	"strings"
 
 	"github.com/gorilla/websocket"
 )
@@ -62,7 +63,7 @@ type AddChannelResult struct {
 }
 
 var Done = make(chan int)
-var cryptoPrices map[string]SpotData = map[string]SpotData{}
+var CryptoPrices map[string]SpotData = map[string]SpotData{}
 
 func ConnectOkex() {
 	log.SetFlags(0)
@@ -78,7 +79,7 @@ func ConnectOkex() {
 	}
 	log.Println("Dial ok")
 
-	err = addChannel(c, "ok_sub_spot_btc_usdt_ticker")
+	err = addChannel(c, "ok_sub_spot_btc_usdt_ticker", "ok_sub_spot_eth_usdt_ticker")
 	if err != nil {
 		closeConnection(c)
 	} else {
@@ -96,12 +97,20 @@ func closeConnection(c *websocket.Conn) {
 	Done <- 1
 }
 
-func addChannel(c *websocket.Conn, channel string) error {
-	cmd := OKCmd{}
-	cmd.Event = "addChannel"
-	cmd.Channel = channel
-	cmd.Binary = 0
-	err := c.WriteJSON(cmd)
+func addChannel(c *websocket.Conn, channels ...string) error {
+	cmds := make([]OKCmd, len(channels))
+	for i := 0; i < len(channels); i++ {
+		cmds[i].Event = "addChannel"
+		cmds[i].Channel = channels[i]
+		cmds[i].Binary = 0
+	}
+
+	wData, err := json.Marshal(cmds)
+	if err != nil {
+		log.Println("json marshal err:", err)
+		return err
+	}
+	err = c.WriteMessage(websocket.TextMessage, wData)
 	if err != nil {
 		log.Println("write close:", err)
 	}
@@ -138,7 +147,7 @@ func onRecv(c *websocket.Conn) {
 			log.Println(err)
 			break
 		}
-		log.Printf("recv: %s", message)
+		//log.Printf("recv: %s", message)
 		if !json.Valid(message) {
 			log.Printf("Invalid Data Format,Message Type:%d", msgType)
 			log.Println(string(message))
@@ -187,9 +196,19 @@ func onChannelData(c ChannelData) {
 		log.Println(err)
 	} else {
 		r.Timestamp = r.Timestamp / 1000
-		cryptoPrices[c.Channel] = r
-		log.Println(r)
+		c.Channel = unifyChannelName(c.Channel)
+		CryptoPrices[c.Channel] = r
+
+		log.Printf("币对:%s,最新:%.4f,涨跌:%.4f,涨跌幅:%.2f%%\n",c.Channel,r.Last,r.Last - r.Open, ((r.Last-r.Open)/r.Open)*100)
 	}
+}
+
+func unifyChannelName(org string) string {
+	var trimed string
+	trimed = strings.Replace(org, "ok_sub_spot_", "", -1)
+	trimed = strings.Replace(trimed, "_ticker","",-1)
+	trimed = strings.Replace(trimed,"_","/",-1)
+	return trimed
 }
 
 func onAddChannelResult(c ChannelData) {
